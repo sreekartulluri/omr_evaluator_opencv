@@ -1,0 +1,58 @@
+import cv2
+import numpy as np
+
+def index_to_option(index):
+    return ['A', 'B', 'C', 'D'][index]
+
+# Load and preprocess the image
+image = cv2.imread("omr.jpg")
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+blurred = cv2.GaussianBlur(gray, (5, 5), 15)
+thresh = cv2.threshold(blurred, 100, 255, cv2.THRESH_BINARY_INV)[1]
+
+# Find contours
+contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+bubbles = []
+
+# Filter and detect filled bubbles
+for contour in contours:
+    x, y, w, h = cv2.boundingRect(contour)
+    aspect_ratio = w / float(h)
+    if 20 < w < 50 and 20 < h < 50 and 0.9 <= aspect_ratio <= 1.1:
+        bubble = thresh[y:y + h, x:x + w]
+        total = cv2.countNonZero(bubble)
+        if total > 500:
+            bubbles.append((x, y, w, h))
+            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+# Sort bubbles top-to-bottom, then left-to-right
+bubbles = sorted(bubbles, key=lambda b: (b[1], b[0]))
+
+# Define answer key (example)
+answer_key = {1: 'B', 2: 'C', 3: 'D', 4: 'A', 5: 'B'}
+
+# Group bubbles into answers
+answers = {}
+for i, bubble in enumerate(bubbles):
+    question_num = i // 4 + 1
+    choice_index = i % 4
+    choice_letter = index_to_option(choice_index)
+    if question_num not in answers:
+        answers[question_num] = choice_letter
+
+# Compare with answer key and grade
+score = 0
+print("Detected Answers:\n")
+for q_num, student_ans in answers.items():
+    correct = answer_key.get(q_num)
+    result = "✅" if student_ans == correct else "❌"
+    print(f"Q{q_num}: Marked {student_ans}, Correct {correct} {result}")
+    if student_ans == correct:
+        score += 1
+
+print(f"\nTotal Score: {score}/{len(answer_key)}")
+
+# Show the image with rectangles around marked bubbles
+cv2.imshow("Detected Bubbles", image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
